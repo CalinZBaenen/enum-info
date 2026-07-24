@@ -1,0 +1,13 @@
+[package]
+description = "A crate to generate enum impls which can list basic info about an enum."
+categories = ["rust-patterns"]
+keywords = ["enum", "variants", "counting", "macro"]
+authors = ["Calin Baenen <calinbaenen@gmail.com>"]
+edition = "2024"
+version = "1.0.0"
+name = "enum-info"
+
+[lib]
+crate-type = ["proc-macro"]
+proc-macro = true
+name = "enum_info"
