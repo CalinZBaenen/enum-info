@@ -4,6 +4,18 @@
 
 //! `enum-info` is a crate to generate an enum `impl` which can tell you the
 //!  number of – and, in most cases, list the – variants in an enum.
+//! 
+//! # Example
+//! ```rust
+//! #[enum_info]
+//! enum Characters {
+//! 	Katty,
+//! 	Jax
+//! }
+//! 
+//! assert_eq!(Characters::variant_count(), 2);
+//! assert_eq!(Characters::VARIANTS, [Characters::Katty, Characters::Jax]);
+//! ```
 
 use proc_macro::{
 	TokenStream,
