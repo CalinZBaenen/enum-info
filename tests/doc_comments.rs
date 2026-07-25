@@ -6,7 +6,7 @@ const FOO:isize = 50;
 const BAR:isize = 100;
 
 #[test]
-fn test_consts() {
+fn test_doc_comments() {
 	// Should have two variants: Documented, Undocumented
 	// Should receive `VARIANTS` associated constant.
 	#[enum_info]

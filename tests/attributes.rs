@@ -4,7 +4,7 @@ use enum_info::enum_info;
 
 #[allow(deprecated)]
 #[test]
-fn test_consts() {
+fn test_attributes() {
 	// Should have 3 variants: Stylish, Zenful, Outdated
 	// Should receive `VARIANTS` associated constant.
 	#[enum_info]

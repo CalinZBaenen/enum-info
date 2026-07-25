@@ -7,7 +7,10 @@
 //! 
 //! # Example
 //! ```rust
+//! use enum_info::enum_info;
+//! 
 //! #[enum_info]
+//! #[derive(PartialEq, Eq)]
 //! enum Characters {
 //! 	Katty,
 //! 	Jax
