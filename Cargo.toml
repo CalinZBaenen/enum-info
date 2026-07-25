@@ -6,7 +6,8 @@ repository = "https://github.com/CalinZBaenen/enum-info"
 keywords = ["enum", "variants", "counting", "macro"]
 authors = ["Calin Baenen <calinbaenen@gmail.com>"]
 edition = "2024"
-version = "1.0.2"
+license = "MIT"
+version = "1.0.3"
 name = "enum-info"
 
 [lib]
