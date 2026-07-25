@@ -10,7 +10,7 @@
 //! use enum_info::enum_info;
 //! 
 //! #[enum_info]
-//! #[derive(PartialEq, Eq)]
+//! #[derive(PartialEq, Debug, Eq)]
 //! enum Characters {
 //! 	Katty,
 //! 	Jax
