@@ -33,33 +33,23 @@ use proc_macro::{
 };
 
 use core::cmp::{PartialOrd, PartialEq, Ordering, Ord, Eq};
-use core::num::NonZeroUsize;
 use std::vec::Vec;
 
 
 
 
 
-#[allow(unused)]
-trait SubposData<S:Subpos> {
-	fn position(&self) -> &S;
-	
-	fn data(&self) -> &S::Data;
+trait HasSubpos<S:Subpos> {
+	/// The position of the sub-position.
+	/// 
+	/// [`::core::option::Option::None`] should be returned if
+	///  the associated super-position is not correct.
+	fn subpos_position(&self) -> Option<&S>;
 }
 
 
 
-trait Subpos:PartialEq {
-	type Data:PartialEq;
-	
-	const ASSOCIATED_STAGE:LexicalPosStage;
-}
-
-impl Subpos for () {
-	type Data = ();
-	
-	const ASSOCIATED_STAGE:LexicalPosStage = LexicalPosStage::Start;
-}
+trait Subpos:Ord+Eq {}
 
 
 
@@ -97,56 +87,7 @@ enum GenericParamPos {
 	DefaultAssignment = 2
 }
 
-impl Subpos for GenericParamPos {
-	type Data = NonZeroUsize;
-	
-	const ASSOCIATED_STAGE:LexicalPosStage = LexicalPosStage::Generics;
-}
-
-
-
-#[derive(PartialOrd, PartialEq,Clone, Debug, Copy, Ord, Eq)]
-#[repr(usize)]
-enum LexicalPosStage {
-	/// Indicates anything before, and up to, the `enum` keyword.
-	Start = 0,
-	/// Indicates the position of the name of the enum.
-	Name = 1,
-	/// Indicates the position directly following the name but before the generics and enum body.
-	AfterName = 2,
-	/// Indicates the position between the outermost `<`/`>`.
-	/// 
-	/// If `depth` is greater than `1`, `pos` should not be [`GenericParamPos::Name`].
-	Generics = 3,
-	/// Indicates the position directly following the generics.
-	AfterGenerics = 4,
-	/// Indicates the position after the `where` keyword but before the enum body.
-	WhereClause = 5,
-	/// Indicates the position inside an enum body.
-	EnumBody = 6
-}
-
-
-
-#[derive(Clone, Copy)]
-union LexicalPosData {
-	enum_body:(EnumBodyPos, <EnumBodyPos as Subpos>::Data),
-	generics:(GenericParamPos, <GenericParamPos as Subpos>::Data),
-	usize:usize,
-	_marker:()
-}
-
-impl SubposData<EnumBodyPos> for LexicalPosData {
-	fn position(&self) -> &EnumBodyPos { unsafe { &self.enum_body.0 } }
-	
-	fn data(&self) -> &<EnumBodyPos as Subpos>::Data { unsafe { &self.enum_body.1 } }
-}
-
-impl SubposData<GenericParamPos> for LexicalPosData {
-	fn position(&self) -> &GenericParamPos { unsafe { &self.generics.0 } }
-	
-	fn data(&self) -> &<GenericParamPos as Subpos>::Data { unsafe { &self.generics.1 } }
-}
+impl Subpos for GenericParamPos {}
 
 
 
@@ -164,116 +105,59 @@ impl GenericParam {
 
 
 
-#[derive(PartialEq, Clone, Copy, Eq)]
+#[derive(PartialOrd, PartialEq, Clone, Copy, Ord, Eq)]
 enum EnumBodyPos {
 	/// Indicates the position of an enum variant.
-	Variant,
+	Variant      = 0,
 	/// Indicates the position after an enum variant's
 	///  name but before the `=`.
-	AfterVariant,
+	AfterVariant = 1,
 	/// Indicates the position following the equals
 	///  sign in an enum variant declaration.
-	Definition
+	Definition   = 2
 }
 
-impl Subpos for EnumBodyPos {
-	type Data = ();
-	
-	const ASSOCIATED_STAGE:LexicalPosStage = LexicalPosStage::EnumBody;
-}
+impl Subpos for EnumBodyPos {}
 
 
 
 /// The expected lexical position of a token.
-#[derive(Clone, Copy)]
-struct LexicalPos {
-	pub stage:LexicalPosStage,
-	pub data:LexicalPosData
+#[derive(PartialEq, Clone, Copy, Eq)]
+#[repr(usize)]
+enum LexicalPos {
+	/// Indicates anything before, and up to, the `enum` keyword.
+	Start,
+	/// Indicates the position of the name of the enum.
+	Name,
+	/// Indicates the position directly following the name but before the generics and enum body.
+	AfterName,
+	/// Indicates the position between the outermost `<`/`>`.
+	/// 
+	/// [`GenericParamPos::Name`] should not be paired with a nesting level greater than one.
+	Generics(GenericParamPos),
+	/// Indicates the position directly following the generics.
+	AfterGenerics,
+	/// Indicates the position after the `where` keyword but before the enum body.
+	WhereClause,
+	/// Indicates the position inside an enum body.
+	EnumBody(EnumBodyPos)
 }
 
 impl LexicalPos {
-	#[inline(always)] pub const fn after_generics() -> Self {
-		Self {
-			stage: LexicalPosStage::AfterGenerics,
-			data: LexicalPosData { _marker: () }
-		}
+	/// Returns whether [`LexicalPos::EnumBody`] is a valid next position.
+	#[inline] pub fn enum_body_can_follow(&self) -> bool {
+		   self.eq(&Self::AfterName)
+		|| self.eq(&Self::AfterGenerics)
+		|| self.eq(&Self::WhereClause)
 	}
 	
-	#[inline(always)] pub const fn where_clause() -> Self {
-		Self {
-			stage: LexicalPosStage::WhereClause,
-			data: LexicalPosData { usize: 0 }
-		}
+	pub fn after_substate<S>(&self, substate:S) -> bool where Self:HasSubpos<S>, S:Subpos {
+		<Self as HasSubpos<S>>::subpos_position(self).is_some_and(|sp| sp.gt(&substate))
 	}
 	
-	#[inline(always)] pub const fn after_name() -> Self {
-		Self {
-			stage: LexicalPosStage::AfterName,
-			data: LexicalPosData { _marker: () }
-		}
+	pub fn in_substate<S>(&self, substate:S) -> bool where Self:HasSubpos<S>, S:Subpos {
+		<Self as HasSubpos<S>>::subpos_position(self).is_some_and(|sp| sp.eq(&substate))
 	}
-	
-	#[inline(always)] pub const fn enum_body(pos:EnumBodyPos) -> Self {
-		Self {
-			stage: LexicalPosStage::EnumBody,
-			data: LexicalPosData { enum_body: (pos, ()) }
-		}
-	}
-	
-	#[inline(always)] pub const fn generics(depth:<GenericParamPos as Subpos>::Data, pos:GenericParamPos) -> Self {
-		Self {
-			stage: LexicalPosStage::Generics,
-			data: LexicalPosData { generics: (pos, depth) }
-		}
-	}
-	
-	#[inline(always)] pub const fn start() -> Self {
-		Self {
-			stage: LexicalPosStage::Start,
-			data: LexicalPosData { _marker: () }
-		}
-	}
-	
-	#[inline(always)] pub const fn name() -> Self {
-		Self {
-			stage: LexicalPosStage::Name,
-			data: LexicalPosData { _marker: () }
-		}
-	}
-	
-	/// Returns whether [`LexicalPosStage::EnumBody`] is a valid next position.
-	#[inline(always)] pub const fn enum_body_can_follow(&self) -> bool {
-		   self.stage as usize == LexicalPosStage::AfterName       as usize
-		|| self.stage as usize == LexicalPosStage::AfterGenerics   as usize
-		|| (
-		       self.stage as usize == LexicalPosStage::WhereClause as usize
-		    && unsafe { self.data.usize } == 0
-		)
-	}
-	
-	pub fn after_substate<S>(&self, substate:S) -> bool where LexicalPosData:SubposData<S>, S:Subpos+Ord {
-		   self.stage == S::ASSOCIATED_STAGE
-		&& <LexicalPosData as SubposData<S>>::position(&self.data).gt(&substate)
-	}
-	
-	/// Returns how deep into generics the lexical position is.
-	/// 
-	/// If the lexical position is not inside generics, `0` is returned.
-	#[inline(always)] pub const fn generics_depth(&self) -> usize {
-		if self.stage as usize != LexicalPosStage::Generics as usize { return 0; }
-		unsafe {
-			self.data.generics.1.get()
-		}
-	}
-	
-	pub fn in_substate<S>(&self, substate:S) -> bool where LexicalPosData:SubposData<S>, S:Subpos {
-		   self.stage == S::ASSOCIATED_STAGE
-		&& <LexicalPosData as SubposData<S>>::position(&self.data).eq(&substate)
-	}
-}
-
-impl PartialOrd<LexicalPosStage> for LexicalPos {
-	#[inline(always)] fn partial_cmp(&self, rhs:&LexicalPosStage) -> Option<Ordering> { Some(self.stage.cmp(rhs)) }
 }
 
 impl PartialOrd for LexicalPos {
@@ -281,32 +165,30 @@ impl PartialOrd for LexicalPos {
 	#[inline(always)] fn partial_cmp(&self, rhs:&Self) -> Option<Ordering> { Some(self.cmp(rhs)) }
 }
 
-impl PartialEq<LexicalPosStage> for LexicalPos {
-	#[inline(always)] fn eq(&self, rhs:&LexicalPosStage) -> bool { self.stage.eq(rhs) }
+impl HasSubpos<GenericParamPos> for LexicalPos {
+	#[inline] fn subpos_position(&self) -> Option<&GenericParamPos> {
+		match self {
+			Self::Generics(pos) => Some(pos),
+			_ => None
+		}
+	}
 }
 
-impl PartialEq for LexicalPos {
-	#[inline] fn eq(&self, rhs:&Self) -> bool {
-		match (self.stage, rhs.stage) {
-			(LexicalPosStage::Generics, LexicalPosStage::Generics) => { unsafe {
-				self.data.generics == rhs.data.generics
-			} }
-			
-			(LexicalPosStage::EnumBody, LexicalPosStage::EnumBody) => { unsafe {
-				self.data.enum_body == rhs.data.enum_body
-			} }
-			
-			(x, y) => { x == y }
+impl HasSubpos<EnumBodyPos> for LexicalPos {
+	#[inline] fn subpos_position(&self) -> Option<&EnumBodyPos> {
+		match self {
+			Self::EnumBody(pos) => Some(pos),
+			_ => None
 		}
 	}
 }
 
 impl Ord for LexicalPos {
 	/// Compares two [`LexicalPos`]es on the basis of which stage they are in.
-	#[inline(always)] fn cmp(&self, rhs:&Self) -> Ordering { self.stage.cmp(&rhs.stage) }
+	#[inline(always)] fn cmp(&self, rhs:&Self) -> Ordering {
+		unsafe { (*(self as *const Self as *const usize)).cmp((rhs as *const Self as *const usize).as_ref_unchecked()) }
+	}
 }
-
-impl Eq for LexicalPos {}
 
 
 
@@ -342,7 +224,8 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 	let mut where_clause = None;
 	let mut variant_ct = 0;
 	let mut all_unit = true;
-	let mut position = LexicalPos::start();
+	let mut position = LexicalPos::Start;
+	let mut nesting = 0usize;
 	let mut output = item.clone();
 	let mut name = String::new();
 	
@@ -354,7 +237,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 		// Loop over the tokens of the outer item's content.
 		match token {
 			TokenTree::Group(g) if position.enum_body_can_follow() && !cmp_punct(prev_tok_as_punct.clone(), Some(Punct::new('!', Spacing::Alone))) && g.delimiter() == Delimiter::Brace => {
-				position = LexicalPos::enum_body(EnumBodyPos::Variant);
+				position = LexicalPos::EnumBody(EnumBodyPos::Variant);
 				for subtoken in g.stream() {
 					match subtoken {
 						TokenTree::Group(_) if position.in_substate(EnumBodyPos::AfterVariant) => {
@@ -366,7 +249,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 						}
 						
 						TokenTree::Ident(i) if position.in_substate(EnumBodyPos::Variant) => {
-							position.data.enum_body.0 = EnumBodyPos::AfterVariant;
+							position = LexicalPos::EnumBody(EnumBodyPos::AfterVariant);
 							variant_ct += 1;
 							
 							if all_unit { variant_names.push(i); }
@@ -375,11 +258,11 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 						TokenTree::Punct(p) => {
 							match p.as_char() {
 								'=' => {
-									position.data.enum_body.0 = EnumBodyPos::Definition;
+									position = LexicalPos::EnumBody(EnumBodyPos::Definition);
 								}
 								
 								',' => {
-									position.data.enum_body.0 = EnumBodyPos::Variant;
+									position = LexicalPos::EnumBody(EnumBodyPos::Variant);
 								}
 								
 								_ => {}
@@ -391,37 +274,37 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 				}
 			}
 			
-			TokenTree::Group(g) if (position.after_substate(GenericParamPos::Name) || position == LexicalPosStage::WhereClause) => {
+			TokenTree::Group(g) if (position.after_substate(GenericParamPos::Name) || position == LexicalPos::WhereClause) => {
 				appendage = Some(TokenTree::Group(g));
 			}
 			
-			TokenTree::Ident(i) if position == LexicalPosStage::Name => {
+			TokenTree::Ident(i) if position == LexicalPos::Name => {
 				name = i.to_string();
-				position = LexicalPos::after_name();
+				position = LexicalPos::AfterName;
 				continue;
 			}
 			
 			TokenTree::Ident(i) => {
 				match i.to_string().as_str() {
-					"enum" if position == LexicalPosStage::Start => {
-						position = LexicalPos::name();
+					"enum" if position == LexicalPos::Start => {
+						position = LexicalPos::Name;
 					},
 					
 					// Const generics.
-					"const" if position.generics_depth() == 1
+					"const" if nesting == 0
 					        && current_generic_param.name.is_none()
 					        && current_generic_param.param_type == Type => { current_generic_param.param_type = Const; },
 					
 					// Where clause.
-					"where" if position == LexicalPosStage::AfterName || position == LexicalPosStage::AfterGenerics => {
-						position = LexicalPos::where_clause();
+					"where" if position == LexicalPos::AfterName || position == LexicalPos::AfterGenerics => {
+						position = LexicalPos::WhereClause;
 					}
 					
 					_ if position.in_substate(GenericParamPos::Name) && current_generic_param.name.is_none() => {
 						current_generic_param.name = Some(i);
 					},
 					
-					_ if (position.after_substate(GenericParamPos::Name) || position == LexicalPosStage::WhereClause) => {
+					_ if (position.after_substate(GenericParamPos::Name) || position == LexicalPos::WhereClause) => {
 						appendage = Some(TokenTree::Ident(i));
 					}
 					
@@ -441,57 +324,55 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 					
 					// Open generics.
 					'<' => {
-						if position == LexicalPosStage::AfterName {
-							position = LexicalPos::generics(unsafe { NonZeroUsize::new_unchecked(1) }, GenericParamPos::Name);
+						if position == LexicalPos::AfterName {
+							position = LexicalPos::Generics(GenericParamPos::Name);
+							nesting = 0;
 							continue;
 						} else if position.after_substate(GenericParamPos::Name) {
 							appendage = Some(TokenTree::Punct(p));
-							position.data.generics.1 = unsafe { position.data.generics }.1.saturating_add(1);
-						} else if position == LexicalPosStage::WhereClause {
-							unsafe { position.data.usize += 1; }
+							nesting = nesting.saturating_add(1);
+						} else if position == LexicalPos::WhereClause {
+							nesting = nesting.wrapping_add(1);
 							appendage = Some(TokenTree::Punct(p));
 						}
 					}
 					
 					// Close generics.
-					'>' if position == LexicalPosStage::Generics && !cmp_punct(prev_tok_as_punct.clone(), Some(Punct::new('-', Spacing::Joint))) => 'close_generics: {
-						if unsafe { position.data.generics }.1.get() == 1 {
+					'>' if matches!(position, LexicalPos::Generics(_)) && !cmp_punct(prev_tok_as_punct.clone(), Some(Punct::new('-', Spacing::Joint))) => 'close_generics: {
+						if nesting == 0 {
 							generic_param_update = true;
-							position = LexicalPos::after_generics();
+							position = LexicalPos::AfterGenerics;
 							
 							break 'close_generics;
 						}
 						
-						position.data.generics.1 =
-							unsafe { NonZeroUsize::new_unchecked(position.data.generics.1.get().saturating_sub(1)) };
+						nesting = nesting.saturating_sub(1);
 						appendage = Some(TokenTree::Punct(p));
 					}
 					
 					// Close generics (in `where` clauses).
-					'>' if position == LexicalPosStage::WhereClause && !cmp_punct(prev_tok_as_punct.clone(), Some(Punct::new('-', Spacing::Joint))) => 'close_generics: { unsafe {
+					'>' if position == LexicalPos::WhereClause && !cmp_punct(prev_tok_as_punct.clone(), Some(Punct::new('-', Spacing::Joint))) => {
 						appendage = Some(TokenTree::Punct(p));
-						
-						if position.data.usize < 1 { break 'close_generics; }
-						position.data.usize -= 1;
-					} }
+						nesting = nesting.wrapping_sub(1);
+					}
 					
 					// Move from the name part of generics to the bounds.
 					':' if position.in_substate(GenericParamPos::Name) => {
-						position.data.generics.0 = GenericParamPos::Bounds;
+						position = LexicalPos::Generics(GenericParamPos::Bounds);
 					}
 					
 					// Capture default values for generic parameters.
-					'=' if !position.after_substate(GenericParamPos::Bounds) && position == LexicalPosStage::Generics => {
-						position.data.generics.0 = GenericParamPos::DefaultAssignment;
+					'=' if !position.after_substate(GenericParamPos::Bounds) && matches!(position, LexicalPos::Generics(_)) => {
+						position = LexicalPos::Generics(GenericParamPos::DefaultAssignment);
 					}
 					
 					// Push the current generic parameter.
-					',' if position.generics_depth() == 1 => {
-						position.data.generics.0 = GenericParamPos::Name;
+					',' if matches!(position, LexicalPos::Generics(_)) && nesting == 0 => {
+						position = LexicalPos::Generics(GenericParamPos::Name);
 						generic_param_update = true;
 					}
 					
-					_ if (position.after_substate(GenericParamPos::Name) || position == LexicalPosStage::WhereClause) => {
+					_ if (position.after_substate(GenericParamPos::Name) || position == LexicalPos::WhereClause) => {
 						appendage = Some(TokenTree::Punct(p));
 					}
 					
@@ -499,7 +380,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 				}
 			}
 			
-			TokenTree::Literal(l) if (position.after_substate(GenericParamPos::Name) || position == LexicalPosStage::WhereClause) => {
+			TokenTree::Literal(l) if (position.after_substate(GenericParamPos::Name) || position == LexicalPos::WhereClause) => {
 				appendage = Some(TokenTree::Literal(l));
 			}
 			
@@ -513,7 +394,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 					append_to = &mut current_generic_param.bounds;
 				} else if position.in_substate(GenericParamPos::DefaultAssignment) {
 					append_to = &mut current_generic_param.default_item;
-				} else if position == LexicalPosStage::WhereClause {
+				} else if position == LexicalPos::WhereClause {
 					append_to = &mut where_clause;
 				} else {
 					break 'append_generics;
