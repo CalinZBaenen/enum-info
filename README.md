@@ -28,3 +28,11 @@ enum Characters {
 assert_eq!(Characters::variant_count(), 2);
 assert_eq!(Characters::VARIANTS, [Characters::Katty, Characters::Jax]);
 ```
+
+## Motivation
+
+This crate is meant intended to be an alternative for specific features found in
+ other crates, which may offer much more than you need.
+
+This solution is also created to run only on what's provided by Rust itself,
+ rather than relying on external dependencies.
