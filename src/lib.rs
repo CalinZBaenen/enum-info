@@ -1,6 +1,7 @@
 // enum-info
 // 
 // Written by Calin Z. Baenen, 2026/07/19
+//               last updated: 2026/07/31
 
 //! `enum-info` is a crate to generate an enum `impl` which can tell you the
 //!  number of – and, in most cases, list the – variants in an enum.
