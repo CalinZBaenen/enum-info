@@ -195,6 +195,15 @@ impl Ord for LexicalPos {
 
 
 
+fn double_colon() -> TokenTree {
+	TokenTree::Group(Group::new(Delimiter::None, TokenStream::from_iter( [
+		TokenTree::Punct(Punct::new(':', Spacing::Joint)),
+		TokenTree::Punct(Punct::new(':', Spacing::Alone))
+	].into_iter() )))
+}
+
+
+
 /// Checks if two [`Option<Punct>`]s are equal based on their [`char`] and
 ///  [`Spacing`] values.
 /// 
@@ -456,14 +465,11 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 		TokenTree::Group(Group::new(Delimiter::Parenthesis, TokenStream::new())),
 		TokenTree::Punct(Punct::new('-', Spacing::Joint)),
 		TokenTree::Punct(Punct::new('>', Spacing::Alone)),
-		TokenTree::Punct(Punct::new(':', Spacing::Joint)),
-		TokenTree::Punct(Punct::new(':', Spacing::Alone)),
+		double_colon(),
 		TokenTree::Ident(Ident::new("core", Span::call_site())),
-		TokenTree::Punct(Punct::new(':', Spacing::Joint)),
-		TokenTree::Punct(Punct::new(':', Spacing::Alone)),
+		double_colon(),
 		TokenTree::Ident(Ident::new("primitive", Span::call_site())),
-		TokenTree::Punct(Punct::new(':', Spacing::Joint)),
-		TokenTree::Punct(Punct::new(':', Spacing::Alone)),
+		double_colon(),
 		TokenTree::Ident(Ident::new("usize", Span::call_site())),
 		
 		// { $variant_ct }
@@ -483,8 +489,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 		for variant in variant_names {
 			items.extend([
 				TokenTree::Ident(Ident::new("Self", Span::call_site())),
-				TokenTree::Punct(Punct::new(':', Spacing::Joint)),
-				TokenTree::Punct(Punct::new(':', Spacing::Alone)),
+				double_colon(),
 				TokenTree::Ident(variant),
 				TokenTree::Punct(Punct::new(',', Spacing::Alone))
 			])
