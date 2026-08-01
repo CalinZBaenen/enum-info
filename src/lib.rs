@@ -43,7 +43,7 @@ use std::vec::Vec;
 trait HasSubpos<S:Subpos> {
 	/// The position of the sub-position.
 	/// 
-	/// [`::core::option::Option::None`] should be returned if
+	/// [`Option::None`] should be returned if
 	///  the associated super-position is not correct.
 	fn subpos_position(&self) -> Option<&S>;
 }
@@ -56,6 +56,7 @@ trait Subpos:Ord+Eq {}
 
 
 
+/// The type of a generic parameter.
 #[derive(PartialEq, Clone, Copy, Eq)]
 #[repr(u8)]
 enum GenericParamType {
