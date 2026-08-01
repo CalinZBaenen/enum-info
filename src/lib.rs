@@ -516,13 +516,13 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 		generics_names.extend([TokenTree::Punct(Punct::new('<', Spacing::Alone))]);
 		generics_full.extend([TokenTree::Punct(Punct::new('<', Spacing::Alone))]);
 		
-		for generic_item in generic_params {
+		for generic_item in generic_params { unsafe {
 			if generic_item.param_type == Lifetime {
-				generics_names.extend([ unsafe { generic_item.param_type.prefix().unwrap_unchecked() } ]);
+				generics_names.extend([ generic_item.param_type.prefix().unwrap_unchecked() ]);
 			}
 			
 			generics_names.extend([
-				TokenTree::Ident(unsafe { generic_item.name.clone().unwrap_unchecked() }),
+				TokenTree::Ident( generic_item.name.clone().unwrap_unchecked() ),
 				TokenTree::Punct(Punct::new(',', Spacing::Alone))
 			]);
 			
@@ -530,7 +530,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 				generics_full.extend([prefix]);
 			}
 			
-			generics_full.extend([TokenTree::Ident(unsafe { generic_item.name.unwrap_unchecked() })]);
+			generics_full.extend([TokenTree::Ident( generic_item.name.unwrap_unchecked() )]);
 			
 			if let Some(suffix) = generic_item.bounds {
 				generics_full.extend([
@@ -540,7 +540,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 			}
 			
 			generics_full.extend([TokenTree::Punct(Punct::new(',', Spacing::Alone))]);
-		}
+		} }
 		
 		generics_names.extend([TokenTree::Punct(Punct::new('>', Spacing::Alone))]);
 		generics_full.extend([TokenTree::Punct(Punct::new('>', Spacing::Alone))]);
