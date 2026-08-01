@@ -83,6 +83,7 @@ use GenericParamType::*;
 
 /// The position inside of a generic parameter.
 #[derive(PartialOrd, PartialEq, Clone, Copy, Ord, Eq)]
+#[repr(usize)]
 enum GenericParamPos {
 	Name              = 0,
 	Bounds            = 1,
@@ -108,6 +109,7 @@ impl GenericParam {
 
 
 #[derive(PartialOrd, PartialEq, Clone, Copy, Ord, Eq)]
+#[repr(usize)]
 enum EnumBodyPos {
 	/// Indicates the position of an enum variant.
 	Variant      = 0,
@@ -247,7 +249,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 		
 		// Loop over the tokens of the outer item's content.
 		match token {
-			TokenTree::Group(g) if position.enum_body_can_follow() && !cmp_punct(prev_tok_as_punct.clone(), Some(Punct::new('!', Spacing::Alone))) && g.delimiter() == Delimiter::Brace => {
+			TokenTree::Group(g) if position.enum_body_can_follow() && nesting == 0 && !cmp_punct(prev_tok_as_punct.clone(), Some(Punct::new('!', Spacing::Alone))) && g.delimiter() == Delimiter::Brace => {
 				position = LexicalPos::EnumBody(EnumBodyPos::Variant);
 				for subtoken in g.stream() {
 					match subtoken {
@@ -309,6 +311,7 @@ pub fn enum_info(_attr:TokenStream, item:TokenStream) -> TokenStream {
 					// Where clause.
 					"where" if position == LexicalPos::AfterName || position == LexicalPos::AfterGenerics => {
 						position = LexicalPos::WhereClause;
+						nesting = 0;
 					}
 					
 					_ if position.in_substate(GenericParamPos::Name) && current_generic_param.name.is_none() => {
