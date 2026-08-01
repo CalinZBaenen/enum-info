@@ -1,5 +1,4 @@
 [package]
-license-file = "licence.md"
 description = "A crate to generate enum impls which can list basic info about an enum."
 categories = ["rust-patterns"]
 repository = "https://github.com/CalinZBaenen/enum-info"
@@ -7,7 +6,7 @@ keywords = ["enum", "variants", "counting", "macro"]
 authors = ["Calin Baenen <calinbaenen@gmail.com>"]
 edition = "2024"
 license = "MIT"
-version = "1.1.0"
+version = "1.1.1"
 name = "enum-info"
 
 [lib]
